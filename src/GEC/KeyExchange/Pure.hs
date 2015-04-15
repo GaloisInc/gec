@@ -1,5 +1,6 @@
-{-# LANGUAGE RecordWildCards #-}
-module GecKE
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+module GEC.KeyExchange.Pure
     (
     -- * Types
       StsCtx, GecKeError(..), GenError(..), StsResult
@@ -14,25 +15,32 @@ module GecKE
     , messageOneSize, messageTwoSize, messageThreeSize
     ) where
 
-import Crypto.Random (GenError, CryptoRandomGen)
-import Crypto.Classes (ctr, buildKey, IV(..))
-import Crypto.Cipher.AES128 (AESKey128)
-import Crypto.Curve25519.Pure as Curve
-import Crypto.Ed25519.Pure as Ed
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
-import Control.Monad.Except
-import Control.Monad.Trans.Except (except)
-import Data.Bits
-import qualified Crypto.Hash.SHA512 as SHA
+import           Crypto.Random (GenError, CryptoRandomGen)
+import           Crypto.Classes (ctr, buildKey, IV(..))
+import           Crypto.Cipher.AES128 (AESKey128)
+import           Crypto.Curve25519.Pure         as Curve
+import           Crypto.Ed25519.Pure            as Ed
+import qualified Crypto.Hash.SHA512             as SHA
+
+import           Control.Exception
+import           Control.Monad.Except
+import           Control.Monad.Trans.Except (except)
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString                as B
+import           Data.Bits
+import           Data.Data
 
 --------------------------------------------------------------------------------
 --  Constants
 
 messageOneSize, messageTwoSize, messageThreeSize :: Int
-messageOneSize    = 32  -- 1 pub key
-messageTwoSize   = 160 -- 1 pub key, 1 signature, 2 public keys
-messageThreeSize = 128 -- 1 signature, 2 public keys
+messageOneSize   = pubKeySize
+messageTwoSize   = pubKeySize + sigSize + pubKeySize + pubKeySize
+messageThreeSize = sigSize + pubKeySize + pubKeySize
+
+pubKeySize, sigSize :: Int
+pubKeySize = 32
+sigSize    = 64
 
 -- Key encryption key material length (128 bit aes key + 64 bit salt)
 kckLen :: Int
@@ -68,6 +76,9 @@ data StsCtx = STS0
 data GecKeError = GeneratorError GenError
                 | InvalidInput
                 | InvalidContext
+                deriving (Eq, Ord, Show, Read, Data, Typeable)
+
+instance Exception GecKeError
 
 data Party = Initiator | Responder | Client
         deriving (Enum)
@@ -112,10 +123,10 @@ responseAck (Init1 {..}) msg nrBytes
           else Left InvalidInput
   where
    -- Parse the incoming message and derive key material
-   (themEphemP,encData)  = B.splitAt 32 msg
+   (themEphemP,encData)  = B.splitAt pubKeySize msg
    decryptedData         = theirKCK encData
-   (sig,signedData)      = B.splitAt 64 decryptedData
-   (themEphemP',ephemP') = B.splitAt 32 signedData
+   (sig,signedData)      = B.splitAt sigSize decryptedData
+   (themEphemP',ephemP') = B.splitAt pubKeySize signedData
    sharedSecret          = makeShared ephemQ (myJust $ Curve.importPublic themEphemP)
    theirKCK              = e_kck $ kdf kckLen Responder sharedSecret
    myKCK                 = e_kck $ kdf kckLen Initiator sharedSecret
@@ -139,8 +150,8 @@ finish (Resp1 {..}) msg nrBytes
   | otherwise                                   = Left InvalidInput
   where
     decryptedData         = theirKCK msg
-    (sig,signedData)      = B.splitAt 64 decryptedData
-    (themEphemP',ephemP') = B.splitAt 32 signedData
+    (sig,signedData)      = B.splitAt sigSize decryptedData
+    (themEphemP',ephemP') = B.splitAt pubKeySize signedData
     keyMaterial           = kdf nrBytes Client sharedSecret
 finish _ _ _ = Left InvalidContext
 

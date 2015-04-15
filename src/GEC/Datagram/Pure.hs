@@ -1,17 +1,20 @@
 {-# LANGUAGE BangPatterns    #-}
 {-# LANGUAGE RecordWildCards #-}
-module GEC ( ContextIn, ContextOut, TagSize(..)
-           , mkInContext , mkOutContext
-           , inflationOut, inflationIn 
+module GEC.Datagram.Pure
+           ( ContextIn, ContextOut, TagSize(..)
+           , mkContextIn , mkContextOut
+           , inflationOut, inflationIn
            , encode, decode
            ) where
 
-import Crypto.Cipher.AES128
-import Crypto.Classes (IV(..), ctr)
-import Crypto.Util
-import Data.Word
-import Data.Bits
-import Data.ByteString (ByteString)
+import           Crypto.Cipher.AES128
+import           Crypto.Classes (IV(..), ctr)
+import           Crypto.Util
+
+import           Control.Monad (guard)
+import           Data.Word
+import           Data.Bits
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 
 data ContextIn =
@@ -39,8 +42,9 @@ inflationOut (CtxOut {..}) = tagLenOut + countLength
 inflationIn :: ContextIn -> Int
 inflationIn (CtxIn {..}) = tagLenIn  + countLength
 
-mkOutContext :: TagSize -> ByteString -> Maybe ContextOut
-mkOutContext sz material = do
+mkContextOut :: TagSize -> ByteString -> Maybe ContextOut
+mkContextOut sz material = do
+        guard (B.length material >= 24)
         gctx <- makeGCMCtx key
         return $ CtxOut gctx cnt salt tagLen
   where
@@ -52,10 +56,11 @@ mkOutContext sz material = do
                    Small -> 8
                    Full  -> 16
 
-mkInContext  :: TagSize -> ByteString -> Maybe ContextIn
-mkInContext sz material
-    | Just gctx <- makeGCMCtx key = Just $ CtxIn gctx win salt tagLen
-    | otherwise                   = Nothing
+mkContextIn  :: TagSize -> ByteString -> Maybe ContextIn
+mkContextIn sz material =
+    do guard (B.length material >= 24)
+       gctx <- makeGCMCtx key
+       return $ CtxIn gctx win salt tagLen
   where
       (key,salt) = B.splitAt 16 material
       win    = case sz of
