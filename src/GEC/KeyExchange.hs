@@ -1,6 +1,6 @@
 module GEC.KeyExchange
     ( -- * Types
-      P.StsCtx, P.GecKeError(..), P.GenError(..)
+      P.StsCtx, P.GecKeError(..), P.GenError(..), P.mkCtx
       -- * Aliases
     , P.Message1, P.Message2, P.Message3, P.KeyMaterial
       -- * Message Construction

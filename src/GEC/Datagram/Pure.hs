@@ -33,6 +33,11 @@ data ContextOut =
 
 data TagSize = Small | Full
 
+-- Translate the ADT to a byte size
+tagSize :: TagSize -> Int
+tagSize Small = 12
+tagSize Full  = 16
+
 countLength :: Int
 countLength = 8
 
@@ -52,9 +57,7 @@ mkContextOut sz material = do
       cnt    = case sz of
                    Small -> maxBound - (2^32)
                    Full  -> 0
-      tagLen = case sz of
-                   Small -> 8
-                   Full  -> 16
+      tagLen = tagSize sz
 
 mkContextIn  :: TagSize -> ByteString -> Maybe ContextIn
 mkContextIn sz material =
@@ -66,9 +69,7 @@ mkContextIn sz material =
       win    = case sz of
                    Small -> SW (maxBound - (2^32)) 0
                    Full  -> SW 0 0
-      tagLen = case sz of
-                   Small -> 8
-                   Full  -> 16
+      tagLen = tagSize sz
 
 encode :: ContextOut -> ByteString -> Maybe (ContextOut, ByteString)
 encode ctx@(CtxOut {..}) msg

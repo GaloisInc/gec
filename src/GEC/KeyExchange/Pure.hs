@@ -3,7 +3,7 @@
 module GEC.KeyExchange.Pure
     (
     -- * Types
-      StsCtx, GecKeError(..), GenError(..), StsResult
+      StsCtx, GecKeError(..), GenError(..), StsResult, mkCtx
     -- * Aliases
     , Message1, Message2, Message3, KeyMaterial
     -- * Message construction
@@ -35,8 +35,8 @@ import           Data.Data
 
 messageOneSize, messageTwoSize, messageThreeSize :: Int
 messageOneSize   = pubKeySize
-messageTwoSize   = pubKeySize + sigSize + pubKeySize + pubKeySize
-messageThreeSize = sigSize + pubKeySize + pubKeySize
+messageTwoSize   = pubKeySize + sigSize
+messageThreeSize = sigSize
 
 pubKeySize, sigSize :: Int
 pubKeySize = 32
@@ -73,6 +73,9 @@ data StsCtx = STS0
                 , sharedSecret :: ByteString
                 }
 
+mkCtx :: (Ed.PublicKey,Ed.PrivateKey) -> Ed.PublicKey -> StsCtx
+mkCtx (meP,meQ) themP = STS0 {..}
+
 data GecKeError = GeneratorError GenError
                 | InvalidInput
                 | InvalidContext
@@ -107,8 +110,8 @@ respond g (STS0 {..}) msg
         theirKCK     = e_kck $ kdf kckLen Initiator sharedSecret
         signData     = Curve.exportPublic ephemP ## Curve.exportPublic themEphemP
         Sig sig      = Ed.sign signData meQ meP
-        encOf_sig_ephemP_themEphemP = myKCK (sig ## signData)
-    return ( Curve.exportPublic ephemP ## encOf_sig_ephemP_themEphemP
+        encOf_sig    = myKCK sig
+    return ( Curve.exportPublic ephemP ## encOf_sig
            , Resp1 { .. }
            , g2)
   | Nothing <- Curve.importPublic msg = Left InvalidInput
@@ -118,23 +121,21 @@ responseAck :: StsCtx -> Message2 -> Int -> StsResult (Message3, KeyMaterial)
 responseAck (Init1 {..}) msg nrBytes
   | B.length msg /= messageTwoSize = Left InvalidInput
   | otherwise =
-      if Ed.valid signedData themP (Sig sig) && ephemP' == Curve.exportPublic ephemP && themEphemP' == themEphemP
+      if Ed.valid signedData themP (Sig sig)
           then return (responseMsg, keyMaterial)
           else Left InvalidInput
   where
    -- Parse the incoming message and derive key material
    (themEphemP,encData)  = B.splitAt pubKeySize msg
-   decryptedData         = theirKCK encData
-   (sig,signedData)      = B.splitAt sigSize decryptedData
-   (themEphemP',ephemP') = B.splitAt pubKeySize signedData
+   sig                   = theirKCK encData
+   signedData            = themEphemP ## Curve.exportPublic ephemP
    sharedSecret          = makeShared ephemQ (myJust $ Curve.importPublic themEphemP)
    theirKCK              = e_kck $ kdf kckLen Responder sharedSecret
    myKCK                 = e_kck $ kdf kckLen Initiator sharedSecret
    -- Now construct the response message
    unsignedOutput = Curve.exportPublic ephemP ## themEphemP
    (Sig outSig)   = Ed.sign unsignedOutput meQ meP
-   signedOut      = outSig ## unsignedOutput
-   responseMsg    = myKCK signedOut
+   responseMsg    = myKCK outSig
    -- Derive the client's key material
    keyMaterial = kdf nrBytes Client sharedSecret
    myJust (Just x) = x
@@ -144,14 +145,11 @@ responseAck _ _ _ = Left InvalidContext
 finish      :: StsCtx -> Message3 -> Int -> StsResult KeyMaterial
 finish (Resp1 {..}) msg nrBytes
   | B.length msg /= messageThreeSize            = Left InvalidInput
-  | Ed.valid signedData themP (Sig sig) &&
-    ephemP' == Curve.exportPublic ephemP &&
-    themEphemP' == Curve.exportPublic themEphemP = return keyMaterial
+  | Ed.valid signedData themP (Sig sig)         = return keyMaterial
   | otherwise                                   = Left InvalidInput
   where
-    decryptedData         = theirKCK msg
-    (sig,signedData)      = B.splitAt sigSize decryptedData
-    (themEphemP',ephemP') = B.splitAt pubKeySize signedData
+    signedData            = Curve.exportPublic themEphemP ## Curve.exportPublic ephemP
+    sig                   = theirKCK msg
     keyMaterial           = kdf nrBytes Client sharedSecret
 finish _ _ _ = Left InvalidContext
 
