@@ -56,7 +56,7 @@ mkContextOut sz material = do
       (key,salt) = B.splitAt 16 material
       cnt    = case sz of
                    Small -> maxBound - (2^32)
-                   Full  -> 0
+                   Full  -> maxBound - (2^48)
       tagLen = tagSize sz
 
 mkContextIn  :: TagSize -> ByteString -> Maybe ContextIn
@@ -68,14 +68,11 @@ mkContextIn sz material =
       (key,salt) = B.splitAt 16 material
       win    = case sz of
                    Small -> SW (maxBound - (2^32)) 0
-                   Full  -> SW 0 0
+                   Full  -> SW (maxBound - (2^48)) 0
       tagLen = tagSize sz
 
 encode :: ContextOut -> ByteString -> Maybe (ContextOut, ByteString)
-encode ctx@(CtxOut {..}) msg
-    | tagLenOut < 16 && count >= 2^32 = Nothing
-    | count >= 2^48                   = Nothing
-    | otherwise                       =
+encode ctx@(CtxOut {..}) msg =
       if count == maxBound
         then Nothing
         else let res = ( ctx { count = count + 1 }
@@ -91,7 +88,7 @@ encode ctx@(CtxOut {..}) msg
 decode :: ContextIn -> ByteString -> Maybe (ContextIn, ByteString)
 decode ctx@(CtxIn { .. }) msg
     | Just sw <- newWindow =
-        if constTimeEq authTagRecv (unAuthTag authTagCompute)
+        if constTimeEq authTagRecv (B.take tagLenIn $ unAuthTag authTagCompute)
             then Just ( ctx { window = sw }, plaintext)
             else Nothing
     | otherwise = Nothing
