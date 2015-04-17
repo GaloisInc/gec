@@ -33,3 +33,35 @@ library
                      , cryptohash
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+Test-Suite test-KeyExchange
+    ghc-options:        -Wall
+    Type:               exitcode-stdio-1.0
+    main-is:            test/KeyExchange.hs
+    build-depends:      base
+                      , transformers
+                      , bytestring
+                      , gec
+                      , entropy
+                      , curve25519
+                      , ed25519-donna
+                      , crypto-api
+                      , monadcryptorandom
+
+Test-Suite test-Datagram
+    ghc-options:        -Wall
+    Type:               exitcode-stdio-1.0
+    main-is:            test/Datagram.hs
+    build-depends:      base
+                      , transformers
+                      , bytestring
+                      , gec
+                      , entropy
+                      , curve25519
+                      , ed25519-donna
+                      , crypto-api
+                      , monadcryptorandom
+
+source-repository head
+    type:               git
+    location:           https://github.com/GaloisInc/gec
