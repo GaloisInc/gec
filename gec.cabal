@@ -30,7 +30,8 @@ library
                      , crypto-api >=0.13 && <0.14
                      , curve25519
                      , ed25519-donna
-                     , mtl >= 2.1, transformers
+                     , mtl >= 2.2.1
+                     , transformers >= 0.4.3.0
                      , cryptohash
   hs-source-dirs:      src
   default-language:    Haskell2010
