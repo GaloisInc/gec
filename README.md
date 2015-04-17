@@ -1,3 +1,5 @@
+![TravisCI](https://travis-ci.org/GaloisInc/gec.svg)
+
 GEC is a light-weight cryptographic library providing confidentiallity and integrity protected communications and key exchange.
 
 Below is the GEC design document from SMACCMPilot, which is the same protocol and a C implementation intended for use on quad copters.
