@@ -4,7 +4,8 @@
 name:                gec
 version:             0.1
 synopsis:            Key Exchange and datagram communication suitable for embedded contexts
--- description:         
+description:         A light-weight cryptographic library providing confidentiallity and
+                     integrity protected communications and key exchange.
 homepage:            github.com/TomMD/gec.git
 license:             BSD3
 license-file:        LICENSE
