@@ -23,8 +23,6 @@ import           Crypto.Ed25519.Pure            as Ed
 import qualified Crypto.Hash.SHA512             as SHA
 
 import           Control.Exception
-import           Control.Monad.Except
-import           Control.Monad.Trans.Except (except)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString                as B
 import           Data.Bits
@@ -97,24 +95,26 @@ type KeyMaterial = ByteString
 --  Message Construction
 
 initiate    :: CryptoRandomGen g => g -> StsCtx -> StsResult (Message1,StsCtx,g)
-initiate g (STS0 { .. }) = runExcept $ do
-    (ephemQ,ephemP,g2) <- genKeyPair g
-    return (Curve.exportPublic ephemP, Init1 { .. } , g2)
+initiate g (STS0 { .. }) =
+    case genKeyPair g of
+        Right (ephemQ,ephemP,g2) -> Right (Curve.exportPublic ephemP, Init1 { .. } , g2)
+        Left err                 -> Left err
 
 respond    :: CryptoRandomGen g => g -> StsCtx -> Message1 -> StsResult (Message2,StsCtx,g)
-respond g (STS0 {..}) msg
-  | Just themEphemP <- Curve.importPublic msg = runExcept $ do
-    (ephemQ,ephemP,g2) <- genKeyPair g
-    let sharedSecret = makeShared ephemQ themEphemP
-        myKCK        = e_kck $ kdf kckLen Responder sharedSecret
-        theirKCK     = e_kck $ kdf kckLen Initiator sharedSecret
-        signData     = Curve.exportPublic ephemP ## Curve.exportPublic themEphemP
-        Sig sig      = Ed.sign signData meQ meP
-        encOf_sig    = myKCK sig
-    return ( Curve.exportPublic ephemP ## encOf_sig
-           , Resp1 { .. }
-           , g2)
-  | Nothing <- Curve.importPublic msg = Left InvalidInput
+respond g (STS0 {..}) msg =
+    case Curve.importPublic msg of
+        Nothing         -> Left InvalidInput
+        Just themEphemP -> either Left (Right . buildMessage themEphemP) (genKeyPair g)
+   where
+    buildMessage themEphemP (ephemQ, ephemP, g2) =
+        let sharedSecret = makeShared ephemQ themEphemP
+            myKCK        = e_kck $ kdf kckLen Responder sharedSecret
+            theirKCK     = e_kck $ kdf kckLen Initiator sharedSecret
+            signData     = Curve.exportPublic ephemP ## Curve.exportPublic themEphemP
+            Sig sig      = Ed.sign signData meQ meP
+            encOf_sig    = myKCK sig
+        in ( Curve.exportPublic ephemP ## encOf_sig , Resp1 { .. } , g2)
+
 respond _ _ _ = Left InvalidContext
 
 responseAck :: StsCtx -> Message2 -> Int -> StsResult (Message3, KeyMaterial)
@@ -200,6 +200,6 @@ encodeParty = B.pack . (:[]) . fromIntegral . fromEnum
 sha512 :: ByteString -> ByteString
 sha512 = SHA.hash
 
-genKeyPair :: CryptoRandomGen g => g -> Except GecKeError (Curve.PrivateKey, Curve.PublicKey, g)
-genKeyPair = except . either (Left . GeneratorError) Right . Curve.generateKeyPair
+genKeyPair :: CryptoRandomGen g => g -> Either GecKeError (Curve.PrivateKey, Curve.PublicKey, g)
+genKeyPair = either (Left . GeneratorError) Right . Curve.generateKeyPair
 
