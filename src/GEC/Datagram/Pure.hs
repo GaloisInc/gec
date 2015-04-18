@@ -26,7 +26,7 @@ data ContextIn =
 
 data ContextOut =
        CtxOut { keyOut    :: GCMCtx AESKey128
-              , count     :: {-# UNPACK #-} !Word64
+              , count     :: {-# UNPACK #-} !Word32
               , saltOut   :: !ByteString -- 4 bytes
               , tagLenOut :: {-# UNPACK #-} !Int
               }
@@ -39,7 +39,7 @@ tagSize Small = 12
 tagSize Full  = 16
 
 countLength :: Int
-countLength = 8
+countLength = 4
 
 inflationOut :: ContextOut -> Int
 inflationOut (CtxOut {..}) = tagLenOut + countLength
@@ -54,9 +54,7 @@ mkContextOut sz material = do
         return $ CtxOut gctx cnt salt tagLen
   where
       (key,salt) = B.splitAt 16 material
-      cnt    = case sz of
-                   Small -> maxBound - (2^32)
-                   Full  -> maxBound - (2^48)
+      cnt    = 0
       tagLen = tagSize sz
 
 mkContextIn  :: TagSize -> ByteString -> Maybe ContextIn
@@ -66,10 +64,8 @@ mkContextIn sz material =
        return $ CtxIn gctx win salt tagLen
   where
       (key,salt) = B.splitAt 16 material
-      win    = case sz of
-                   Small -> SW (maxBound - (2^32)) 0
-                   Full  -> SW (maxBound - (2^48)) 0
-      tagLen = tagSize sz
+      win        = SW 0 0
+      tagLen     = tagSize sz
 
 encode :: ContextOut -> ByteString -> Maybe (ContextOut, ByteString)
 encode ctx@(CtxOut {..}) msg =
@@ -81,7 +77,7 @@ encode ctx@(CtxOut {..}) msg =
   where
     tag = B.take tagLenOut (unAuthTag fullTag)
     aad = B.empty
-    cnt = p64 count
+    cnt = p32 count
     iv  = cnt ## saltOut
     (ciphertext,fullTag) = encryptGCM keyOut iv msg aad
 
@@ -95,40 +91,32 @@ decode ctx@(CtxIn { .. }) msg
   where
     aad = B.empty
     iv  = cnt ## saltIn
-    newWindow               = nextWindow window (c64 cnt)
+    newWindow               = nextWindow window (c32 cnt)
     (firstPart,authTagRecv) = B.splitAt (B.length msg - tagLenIn) msg
     (cnt,ciphertext)        = B.splitAt countLength firstPart
     (plaintext, authTagCompute) = decryptGCM keyIn iv ciphertext aad
 
-p64 :: Word64 -> ByteString
-p64 w = B.pack [ fromIntegral $ w `shiftR` 56
-               , fromIntegral $ w `shiftR` 48
-               , fromIntegral $ w `shiftR` 40
-               , fromIntegral $ w `shiftR` 32
-               , fromIntegral $ w `shiftR` 24
+p32 :: Word32 -> ByteString
+p32 w = B.pack [ fromIntegral $ w `shiftR` 24
                , fromIntegral $ w `shiftR` 16
                , fromIntegral $ w `shiftR` 8
                , fromIntegral $ w `shiftR` 0
                ]
 
-c64 :: ByteString -> Word64
-c64 x | B.length x == 8 = let [a,b,c,d,e,f,g,h] = B.unpack x
-                          in fromIntegral a `shiftL` 56 +
-                             fromIntegral b `shiftL` 48 +
-                             fromIntegral c `shiftL` 40 +
-                             fromIntegral d `shiftL` 32 +
-                             fromIntegral e `shiftL` 24 +
-                             fromIntegral f `shiftL` 16 +
-                             fromIntegral g `shiftL` 8 +
-                             fromIntegral h `shiftL` 0
-      | otherwise       = maxBound
+c32 :: ByteString -> Word32
+c32 x | B.length x == 4 = let [a,b,c,d] = B.unpack x
+                          in fromIntegral a `shiftL` 24 +
+                             fromIntegral b `shiftL` 16 +
+                             fromIntegral c `shiftL` 8 +
+                             fromIntegral d `shiftL` 0
+      | otherwise = maxBound
 
 data SequenceWindow =
-        SW { swBase :: !Word64
-           , swMask :: !Word64
+        SW { swBase :: !Word32
+           , swMask :: !Word32
            }
 
-nextWindow :: SequenceWindow -> Word64 -> Maybe SequenceWindow
+nextWindow :: SequenceWindow -> Word32 -> Maybe SequenceWindow
 nextWindow ctx c
     | c < swBase ctx                                       = Nothing
     | testBit (swMask ctx) (fromIntegral $ c - swBase ctx) = Nothing
