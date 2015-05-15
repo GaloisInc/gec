@@ -54,7 +54,7 @@ mkContextOut sz material = do
         return $ CtxOut gctx cnt salt tagLen
   where
       (key,salt) = B.splitAt 16 material
-      cnt    = 0
+      cnt    = 1
       tagLen = tagSize sz
 
 mkContextIn  :: TagSize -> ByteString -> Maybe ContextIn
@@ -64,7 +64,7 @@ mkContextIn sz material =
        return $ CtxIn gctx win salt tagLen
   where
       (key,salt) = B.splitAt 16 material
-      win        = SW 0 0
+      win        = SW 1 0
       tagLen     = tagSize sz
 
 encode :: ContextOut -> ByteString -> Maybe (ContextOut, ByteString)
