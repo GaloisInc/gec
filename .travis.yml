@@ -1,7 +1,4 @@
 sudo: false
 language: haskell
-script:
-  - make create-sandbox
-  - make
 ghc:
   - 7.8
