@@ -1,6 +1,6 @@
 module GEC.KeyExchange
     ( -- * Types
-      P.StsCtx, P.GecKeError(..), P.GenError(..), P.mkCtx
+      P.StsCtx, P.GecKeError(..), P.GenError, P.mkCtx
       -- * Aliases
     , P.Message1, P.Message2, P.Message3, P.KeyMaterial
       -- * Message Construction
@@ -10,15 +10,13 @@ module GEC.KeyExchange
     ) where
 
 import qualified GEC.KeyExchange.Pure as P
-import qualified Data.ByteString as B
-import           Data.ByteString (ByteString)
 import           Crypto.Random (CryptoRandomGen, throwLeft)
 
 initiate :: CryptoRandomGen g => g -> P.StsCtx -> (P.Message1, P.StsCtx, g)
 initiate g c = throwLeft (P.initiate g c)
 
 respond :: CryptoRandomGen g => g -> P.StsCtx -> P.Message1 -> (P.Message1, P.StsCtx, g)
-respond g c m = throwLeft (P.initiate g c)
+respond g c _m = throwLeft (P.initiate g c)
 
 responseAck :: P.StsCtx -> P.Message2 -> Int -> (P.Message3, P.KeyMaterial)
 responseAck c m n = throwLeft (P.responseAck c m n)

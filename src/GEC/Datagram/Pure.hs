@@ -8,7 +8,7 @@ module GEC.Datagram.Pure
            ) where
 
 import           Crypto.Cipher.AES128
-import           Crypto.Classes (IV(..), ctr)
+import           Crypto.Classes ()
 import           Crypto.Util
 
 import           Control.Monad (guard)

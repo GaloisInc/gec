@@ -3,7 +3,7 @@
 module GEC.KeyExchange.Pure
     (
     -- * Types
-      StsCtx, GecKeError(..), GenError(..), StsResult, mkCtx
+      StsCtx, GecKeError(..), GenError, StsResult, mkCtx
     -- * Aliases
     , Message1, Message2, Message3, KeyMaterial
     -- * Message construction
@@ -100,6 +100,8 @@ initiate g (STS0 { .. }) =
         Right (ephemQ,ephemP,g2) -> Right (Curve.exportPublic ephemP, Init1 { .. } , g2)
         Left err                 -> Left err
 
+initiate _ _ = Left InvalidContext
+
 respond    :: CryptoRandomGen g => g -> StsCtx -> Message1 -> StsResult (Message2,StsCtx,g)
 respond g (STS0 {..}) msg =
     case Curve.importPublic msg of
@@ -171,7 +173,7 @@ finish _ _ _ = Left InvalidContext
 -- Responder, 2 for Client key material).
 kdf :: Int -> Party -> ByteString -> ByteString
 kdf nrBytes p sec
-    | nrBytes > (2^16 * 64) = error "Will not derive over 2^16 * 64 bytes from the secret key material with ~128 bits.  If you wrote the code to do this intentionally then you should hire someone to write this bit of code for you - you're using it wrong!"
+    | nrBytes > (2^(16 :: Integer) * 64) = error "Will not derive over 2^16 * 64 bytes from the secret key material with ~128 bits.  If you wrote the code to do this intentionally then you should hire someone to write this bit of code for you - you're using it wrong!"
     | otherwise = B.take nrBytes full
  where
      full  = B.concat $ map sha512 [B.concat [p16 cnt, sec, party] | cnt <- [0..nrBlk-1]]

@@ -21,10 +21,10 @@ library
                      , GEC.Datagram.Pure
   -- other-modules:       
   other-extensions:    BangPatterns, RecordWildCards
-  build-depends:       base >=4.7 && <4.8
-                     , cipher-aes128 >=0.7 && <0.8
-                     , bytestring >=0.10 && <0.11
-                     , crypto-api >=0.13 && <0.14
+  build-depends:       base >= 4.7 && < 5
+                     , cipher-aes128 >= 0.7
+                     , bytestring >= 0.10
+                     , crypto-api >= 0.13
                      , curve25519
                      , ed25519-donna
                      , cryptohash
@@ -37,6 +37,7 @@ Test-Suite test-KeyExchange
     main-is:            test/KeyExchange.hs
     build-depends:      base
                       , transformers
+                      , transformers-compat
                       , bytestring
                       , gec
                       , entropy

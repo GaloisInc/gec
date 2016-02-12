@@ -1,12 +1,7 @@
+include stack.mk
 
-default:
-	cabal build
+TRAVIS_STACK ?= stack --no-terminal --system-ghc --skip-ghc-check
 
-create-sandbox:
-	cabal sandbox init
-	cabal install --dependencies-only
-
-clean-sandbox:
-	-rm -rf .cabal-sandbox
-	-rm -rf cabal.sandbox.config
-	-rm -rf dist
+travis-test:
+	$(TRAVIS_STACK) build --test --no-run-tests --haddock --no-haddock-deps --pedantic
+	$(TRAVIS_STACK) test
